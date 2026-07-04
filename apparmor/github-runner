@@ -59,8 +59,10 @@ profile github-runner flags=(attach_disconnected,mediate_deleted) {
   /var/tmp/{,**} rwklmix,
   /dev/shm/{,**} rwklm,
 
-  # Entrypoint root phase: usermod/groupmod rewrite the account database
-  /etc/{passwd,group,shadow,gshadow}* rwk,
+  # Entrypoint root phase: usermod/groupmod rewrite the account database.
+  # 'l' is required — shadow-utils lock these files by hard-linking
+  # /etc/group.<pid> to /etc/group.lock.
+  /etc/{passwd,group,shadow,gshadow}* rwkl,
   /etc/.pwd.lock rwk,
 
   # .NET / Node set thread and process names

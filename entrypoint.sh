@@ -20,8 +20,12 @@ if [[ "$(id -u)" == "0" ]]; then
     PUID="${PUID:-1000}"
     PGID="${PGID:-1000}"
 
-    groupmod -o -g "${PGID}" runner
-    usermod -o -u "${PUID}" runner
+    if [[ "$(id -g runner)" != "${PGID}" ]]; then
+        groupmod -o -g "${PGID}" runner
+    fi
+    if [[ "$(id -u runner)" != "${PUID}" ]]; then
+        usermod -o -u "${PUID}" runner
+    fi
 
     # Reset every job-writable location to its pristine state. Everything
     # else in the container is write-protected (unprivileged user + AppArmor),
