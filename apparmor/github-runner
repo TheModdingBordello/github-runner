@@ -60,10 +60,18 @@ profile github-runner flags=(attach_disconnected,mediate_deleted) {
   /dev/shm/{,**} rwklm,
 
   # Entrypoint root phase: usermod/groupmod rewrite the account database.
-  # 'l' is required — shadow-utils lock these files by hard-linking
-  # /etc/group.<pid> to /etc/group.lock.
+  # 'l' + the link rule are required — shadow-utils lock these files by
+  # hard-linking /etc/group.<pid> to /etc/group.lock.
   /etc/{passwd,group,shadow,gshadow}* rwkl,
+  link /etc/{passwd,group,shadow,gshadow}* -> /etc/{passwd,group,shadow,gshadow}*,
   /etc/.pwd.lock rwk,
+
+  # Harmless console writes from the entrypoint/shadow-utils
+  /dev/tty rw,
+
+  # usermod migrates the login accounting entries when the uid changes
+  /var/log/lastlog rwk,
+  /var/log/faillog rwk,
 
   # .NET / Node set thread and process names
   owner @{PROC}/@{pid}/comm rw,

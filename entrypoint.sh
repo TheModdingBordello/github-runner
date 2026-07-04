@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# Never trust the inherited working directory — config.sh/run.sh are invoked
+# relative to the runner installation
+cd /mnt/agent/runner
+
 # Required:
 #   GITHUB_URL    org or repo URL, e.g. https://github.com/my-org or https://github.com/owner/repo
 #   and one of:
@@ -34,6 +38,9 @@ if [[ "$(id -u)" == "0" ]]; then
         echo "Resetting agent filesystem to pristine state..."
         find /mnt/agent /tmp /var/tmp /dev/shm -mindepth 1 -delete 2> /dev/null || true
         tar -C / -xzf /opt/agent-skel.tar.gz
+        # The reset replaced the directory this shell was standing in;
+        # re-enter it by absolute path or relative paths resolve nowhere
+        cd /mnt/agent/runner
     fi
 
     if [[ "$(stat -c '%u:%g' /mnt/agent)" != "${PUID}:${PGID}" ]]; then
