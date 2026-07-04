@@ -121,13 +121,24 @@ RUN VERSION="${RUNNER_VERSION:-$(curl -fsSL https://api.github.com/repos/actions
 ARG INNOSETUP_VERSION=6.7.3
 ENV WINEPREFIX=/mnt/agent/home/.wine \
     WINEDEBUG=-all
+# The whole install sequence must share one xvfb session: wineboot spawns
+# wineserver/explorer, and if those start without a display, the installer's
+# (hidden) windows fail with "Invalid window handle" even under /VERYSILENT.
 RUN curl -fsSL -o /tmp/innosetup.exe \
         "https://github.com/jrsoftware/issrc/releases/download/is-$(echo "${INNOSETUP_VERSION}" | tr . _)/innosetup-${INNOSETUP_VERSION}.exe" \
-    && gosu runner env HOME=/mnt/agent/home sh -c \
-        'wineboot --init && xvfb-run -a wine /tmp/innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- && wineserver -w' \
-    && rm /tmp/innosetup.exe \
-    && printf '#!/bin/sh\nexec xvfb-run -a wine "C:\\\\Program Files (x86)\\\\Inno Setup 6\\\\ISCC.exe" "$@"\n' > /usr/local/bin/iscc \
-    && chmod 755 /usr/local/bin/iscc
+    && gosu runner env HOME=/mnt/agent/home xvfb-run -a sh -c \
+        'wineboot --init && wine /tmp/innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- && wineserver -w' \
+    && rm /tmp/innosetup.exe
+
+# iscc wrapper: resolve ISCC.exe inside the prefix at run time ("Program Files"
+# vs "Program Files (x86)" depends on the prefix architecture)
+RUN printf '%s\n' \
+        '#!/bin/sh' \
+        'set -- "$(ls -d "${WINEPREFIX:-$HOME/.wine}"/drive_c/Program\ Files*/Inno\ Setup\ 6/ISCC.exe 2>/dev/null | head -1)" "$@"' \
+        'exec xvfb-run -a wine "$@"' \
+        > /usr/local/bin/iscc \
+    && chmod 755 /usr/local/bin/iscc \
+    && test -x "$(ls -d /mnt/agent/home/.wine/drive_c/Program\ Files*/Inno\ Setup\ 6/ISCC.exe | head -1)"
 
 # Pristine snapshot of the agent tree, restored on startup when RUNNER_CLEAN_FS
 # is enabled (default for ephemeral runners)
