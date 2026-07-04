@@ -16,6 +16,8 @@ automatically; pass `--build-arg RUNNER_VERSION=x.y.z` to pin one.
 - Docker CLI + Buildx + Compose (uses the host daemon via socket mount)
 - GitHub CLI (`gh`)
 - AWS CLI v2 (`aws`)
+- NativeAOT win-x64 cross toolchain: `lld-link` + `xwin` (pairs with the PublishAotCrossXWin NuGet package)
+- Inno Setup 6 under Wine (`iscc` wrapper on PATH)
 
 ## Usage
 
