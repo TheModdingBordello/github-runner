@@ -25,8 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         tar \
         xz-utils \
         gnupg \
+        gosu \
         lsb-release \
-        sudo \
         openssh-client \
         rsync \
         python3 \
@@ -63,15 +63,17 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Runner user (ubuntu:24.04 ships a default 'ubuntu' user at uid 1000 — replace it)
+# Runner user (ubuntu:24.04 ships a default 'ubuntu' user at uid 1000 — replace it).
+# Everything the agent may write lives under /mnt/agent so the AppArmor profile
+# can deny writes to the rest of the filesystem, including /home and /root.
 RUN userdel -r ubuntu \
-    && useradd -m -u 1000 runner \
+    && mkdir -p /mnt/agent/workspace \
+    && useradd -m -u 1000 -d /mnt/agent/home runner \
     && groupadd -f docker \
-    && usermod -aG docker runner \
-    && echo "runner ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/runner
+    && usermod -aG docker runner
 
 # GitHub Actions runner
-WORKDIR /home/runner
+WORKDIR /mnt/agent/runner
 RUN VERSION="${RUNNER_VERSION:-$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/^v//')}" \
     && case "${TARGETARCH}" in \
         amd64) ARCH=x64 ;; \
@@ -84,9 +86,14 @@ RUN VERSION="${RUNNER_VERSION:-$(curl -fsSL https://api.github.com/repos/actions
     && rm runner.tar.gz \
     && ./bin/installdependencies.sh \
     && rm -rf /var/lib/apt/lists/* \
-    && chown -R runner:runner /home/runner
+    && chown -R runner:runner /mnt/agent
+
+# Pristine snapshot of the agent tree, restored on startup when RUNNER_CLEAN_FS
+# is enabled (default for ephemeral runners)
+RUN tar -C / -czf /opt/agent-skel.tar.gz mnt/agent
 
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
 
-USER runner
+# Starts as root: the entrypoint remaps the runner user to PUID/PGID and
+# drops privileges via gosu before registering the runner.
 ENTRYPOINT ["/entrypoint.sh"]

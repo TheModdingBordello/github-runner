@@ -1,0 +1,52 @@
+# Each runner is its own service so each workspace can bind-mount a distinct
+# local folder (a --scale'd service would share one). Add runners by copying
+# a service block.
+x-runner: &runner
+  # ghcr.io image names must be all-lowercase
+  image: ghcr.io/themoddingbordello/github-runner:latest
+  restart: unless-stopped
+  env_file: .env
+
+  # Drop everything; add back only what the entrypoint's root phase needs
+  # to remap PUID/PGID and drop to the runner user via gosu.
+  cap_drop:
+    - ALL
+  cap_add:
+    - CHOWN
+    - SETUID
+    - SETGID
+    - FOWNER
+    - DAC_OVERRIDE
+
+  security_opt:
+    # setuid/setgid binaries can't re-escalate privileges
+    - no-new-privileges=true
+    # Writes confined to /mnt/agent + /tmp; /home and /root unreadable.
+    # Install on the host first: sudo apparmor/install.sh
+    # (or comment this line out on hosts without AppArmor)
+    - apparmor=github-runner
+
+  pids_limit: 4096
+  # mem_limit: 8g
+  # cpus: 4
+
+  # WARNING: mounting the docker socket into a service's volumes grants jobs
+  # root on the HOST — it defeats every restriction above. Enable per-service
+  # only if that runner executes exclusively trusted workflows:
+  #   - /var/run/docker.sock:/var/run/docker.sock
+
+services:
+  runner-1:
+    <<: *runner
+    volumes:
+      - ./workspaces/runner-1:/mnt/agent/workspace
+
+  runner-2:
+    <<: *runner
+    volumes:
+      - ./workspaces/runner-2:/mnt/agent/workspace
+
+  runner-3:
+    <<: *runner
+    volumes:
+      - ./workspaces/runner-3:/mnt/agent/workspace

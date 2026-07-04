@@ -1,0 +1,73 @@
+# AppArmor profile for the containerized GitHub Actions runner.
+#
+# Load on the HOST before starting the container:
+#   sudo apparmor_parser -r apparmor/github-runner
+# Persist across reboots:
+#   sudo cp apparmor/github-runner /etc/apparmor.d/github-runner
+#   sudo systemctl reload apparmor
+#
+# The container references it via `security_opt: apparmor=github-runner`
+# (see docker-compose.yml). Docker refuses to start the container if the
+# profile is not loaded.
+#
+# Debugging denials: switch flags to (attach_disconnected,mediate_deleted,complain)
+# to log instead of block, then watch:
+#   sudo journalctl -kf | grep -i apparmor
+
+abi <abi/3.0>,
+
+#include <tunables/global>
+
+profile github-runner flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # --- Capabilities: only what the entrypoint's root phase needs to remap
+  # PUID/PGID and drop to the runner user. Everything unlisted (sys_admin,
+  # net_admin, net_raw, sys_ptrace, mknod, ...) is denied — this enforces the
+  # cap_drop in docker-compose.yml at the kernel MAC layer as well.
+  capability chown,
+  capability setuid,
+  capability setgid,
+  capability fowner,
+  capability dac_override,
+
+  # Jobs need arbitrary outbound network (package registries, GitHub, ...)
+  network,
+
+  # The runner manages its own job process tree
+  signal,
+  ptrace peer=github-runner,
+
+  # No filesystem tricks
+  deny mount,
+  deny umount,
+  deny pivot_root,
+
+  # --- Sensitive locations: unreadable and unwritable, even for the root phase
+  deny /home/{,**} mrwklx,
+  deny /root/{,**} mrwklx,
+
+  # --- Read + execute everywhere else (system toolchains, libs); the global
+  # rule grants no write. Children inherit this profile (ix).
+  / r,
+  /** rmix,
+
+  # --- Writes: agent tree and scratch space only
+  /mnt/agent/{,**} rwklmix,
+  /tmp/{,**} rwklmix,
+  /var/tmp/{,**} rwklmix,
+  /dev/shm/{,**} rwklm,
+
+  # Entrypoint root phase: usermod/groupmod rewrite the account database
+  /etc/{passwd,group,shadow,gshadow}* rwk,
+  /etc/.pwd.lock rwk,
+
+  # .NET / Node set thread and process names
+  owner @{PROC}/@{pid}/comm rw,
+  owner @{PROC}/@{pid}/task/@{tid}/comm rw,
+
+  # Docker socket, if mounted (see the warning in docker-compose.yml)
+  /run/docker.sock rw,
+  /var/run/docker.sock rw,
+}
