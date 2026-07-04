@@ -15,6 +15,7 @@ automatically; pass `--build-arg RUNNER_VERSION=x.y.z` to pin one.
 - Python 3 + pip + venv
 - Docker CLI + Buildx + Compose (uses the host daemon via socket mount)
 - GitHub CLI (`gh`)
+- AWS CLI v2 (`aws`)
 
 ## Usage
 
