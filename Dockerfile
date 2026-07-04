@@ -116,9 +116,13 @@ RUN VERSION="${RUNNER_VERSION:-$(curl -fsSL https://api.github.com/repos/actions
 # Inno Setup under Wine, installed into the runner user's prefix so runtime
 # writes stay inside /mnt/agent (AppArmor) and the prefix is part of the
 # pristine snapshot below. `iscc` wrapper puts it on PATH for jobs.
+# Installers live in immutable GitHub releases since March 2026 (tag is-X_Y_Z);
+# files.jrsoftware.org only hosts .issig signatures now.
+ARG INNOSETUP_VERSION=6.7.3
 ENV WINEPREFIX=/mnt/agent/home/.wine \
     WINEDEBUG=-all
-RUN curl -fsSL -o /tmp/innosetup.exe https://files.jrsoftware.org/is/6/innosetup-6.4.3.exe \
+RUN curl -fsSL -o /tmp/innosetup.exe \
+        "https://github.com/jrsoftware/issrc/releases/download/is-$(echo "${INNOSETUP_VERSION}" | tr . _)/innosetup-${INNOSETUP_VERSION}.exe" \
     && gosu runner env HOME=/mnt/agent/home sh -c \
         'wineboot --init && xvfb-run -a wine /tmp/innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- && wineserver -w' \
     && rm /tmp/innosetup.exe \
