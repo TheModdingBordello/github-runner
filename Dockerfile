@@ -63,6 +63,17 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
+# AWS CLI v2
+RUN case "${TARGETARCH}" in \
+        amd64) AWSARCH=x86_64 ;; \
+        arm64) AWSARCH=aarch64 ;; \
+        *) echo "Unsupported arch: ${TARGETARCH}" && exit 1 ;; \
+    esac \
+    && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWSARCH}.zip" -o /tmp/awscliv2.zip \
+    && unzip -q /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install \
+    && rm -rf /tmp/aws /tmp/awscliv2.zip
+
 # Runner user (ubuntu:24.04 ships a default 'ubuntu' user at uid 1000 — replace it).
 # Everything the agent may write lives under /mnt/agent so the AppArmor profile
 # can deny writes to the rest of the filesystem, including /home and /root.
